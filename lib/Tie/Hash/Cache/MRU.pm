@@ -5,7 +5,7 @@ use strict;
 use warnings;
 
 
-our $VERSION = '0.01';
+our $VERSION = '0.02';
 
 sub CURRENT(){0};
 sub OLD(){1};
@@ -38,7 +38,7 @@ sub TIEHASH {
 	$obj[S] ||= sub($$){$obj[HASH]->{$_[0]} = $_[1]};
 	$obj[D] ||= sub($){delete $obj[HASH]->{$_[0]}};
 	$obj[E] ||= sub($){exists $obj[HASH]->{$_[0]}};
-	$obj[C] ||= sub(){%{$obj[HASH]} = () };
+	defined $obj[C] or $obj[C] = sub(){%{$obj[HASH]} = () };
 
 
 	bless \@obj, $pack;
@@ -59,10 +59,8 @@ sub FETCH { # obj, key
 		&{$_[0]->[E]}($_[1])?
 		&{$_[0]->[F]}($_[1]):
 		\$NOTEXIST;
-
-		$_[0]->[TIME]->{$_[1]} = time;
-		
 	   };
+	   $_[0]->[TIME]->{$_[1]} = time;
 	};
 
 	if (exists $_[0]->[CURRENT]->{$_[1]}){
@@ -78,6 +76,7 @@ sub FETCH { # obj, key
 		   $_[0]->[CURRENT]->{$_[1]} =
 		   delete $_[0]->[OLD]->{$_[1]}
 	};
+	no warnings;
 	if (%{$_[0]->[CURRENT]} > $_[0]->[SIZE]){
 		if($_[0]->[LIFE]){
 			delete @{$_[0]->[TIME]}{
@@ -93,6 +92,7 @@ sub FETCH { # obj, key
 }
 
 sub STORE { # obj, key, value
+	no warnings;
 	if (%{$_[0]->[CURRENT]} > $_[0]->[SIZE]){
 		if($_[0]->[LIFE]){
 			delete @{$_[0]->[TIME]}{
@@ -105,7 +105,7 @@ sub STORE { # obj, key, value
 	};
 	$_[0]->[LIFE] and $_[0]->[TIME]->{$_[1]} = time;
 	$_[0]->[CURRENT]->{$_[1]} = $_[2];
-	return &{$_[0]->[S]}(@_[1,2]);
+	&{$_[0]->[S]}(@_[1,2]);
 }
 sub EXISTS {
 	if($_[0]->[LIFE]){
@@ -118,10 +118,8 @@ sub EXISTS {
 		&{$_[0]->[E]}($_[1])?
 		&{$_[0]->[F]}($_[1]):
 		\$NOTEXIST;
-
-		$_[0]->[TIME]->{$_[1]} = time;
-		
 	   };
+	   $_[0]->[TIME]->{$_[1]} = time;
 	};
 	if (exists $_[0]->[CURRENT]->{$_[1]}){
 	   $_[0]->[CURRENT]->{$_[1]} eq \$NOTEXIST
@@ -136,6 +134,7 @@ sub EXISTS {
 		and return undef;
 	   return 1;
 	};
+	no warnings;
 	if (%{$_[0]->[CURRENT]} > $_[0]->[SIZE]){
 		if($_[0]->[LIFE]){
 			delete @{$_[0]->[TIME]}{
@@ -158,6 +157,7 @@ sub EXISTS {
 
 sub DELETE {
 	$_[0]->[CURRENT]->{$_[1]} = \$NOTEXIST;
+	$_[0]->[LIFE] and $_[0]->[TIME]->{$_[1]} = time;
 	&{$_[0]->[D]}($_[1]);
 
 }
@@ -179,7 +179,11 @@ sub NEXTKEY {
 }
 
 sub CLEAR {
-	ref $_[0]->[C] =~ /CODE/ and
+	%{$_[0]->[CURRENT]} =
+	%{$_[0]->[OLD]} = ();
+	$_[0]->[LIFE] and %{$_[0]->[TIME]} = ();
+
+	ref( $_[0]->[C]) =~ /CODE/ and
 		&{$_[0]->[C]}();
 
 }
@@ -196,6 +200,9 @@ sub CACHE {
 
 	%{ $obj->[CURRENT] } =
 	( %{ $obj->[CURRENT] } , @_ );
+	if($_[0]->[LIFE]){
+		$_[0]->[TIME]->{$_} = time foreach @_;
+	};
 
 
 } 
@@ -350,7 +357,11 @@ to the data, without affecting the contents of the cache.
 
 =item 0.01
 
-First release, after thinking about this for quite some time.
+First release, too early..
+
+=item 0.02
+
+Added tests, repaired time-based expiration
 
 =back
 
